@@ -25,7 +25,10 @@ canvas{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch
 .mx-key{position:fixed;display:grid;place-items:center;box-sizing:border-box;pointer-events:none}
 .mx-key::before{content:"";position:absolute;inset:10%;border-radius:22px;border:2px solid #ffffff73;background:#0000002e;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 .mx-key{color:#fff;font:800 clamp(13px,2.6vw,22px)/1 system-ui,sans-serif;text-shadow:0 1px 3px #000a;text-transform:capitalize}
-.mx-key>span{position:relative;white-space:nowrap}
+.mx-key>span{position:relative;display:flex;align-items:center;justify-content:center;gap:.4em;white-space:nowrap}
+.mx-key>span.both{flex-direction:column;gap:.1em;font-size:.72em}
+.mx-key>span.both svg{width:2em;height:2em}
+.mx-key svg{width:1.5em;height:1.5em;display:block;fill:currentColor;filter:drop-shadow(0 1px 2px #000a)}
 .mx-pause{position:fixed;left:10px;top:10px;width:40px;height:40px;border-radius:50%;border:1px solid #ffffff33;background:#00000073;color:#fff;font:800 13px system-ui,sans-serif;z-index:4;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .mx-soundchip{position:fixed;right:10px;top:10px;height:34px;padding:0 12px;border-radius:999px;border:1px solid #ffffff33;background:#00000073;color:#fff;font:600 12px system-ui,sans-serif;z-index:4;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .mx-rotate{display:none;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:8px 14px;border-radius:999px;background:#000000b3;color:#fff;font:600 13px system-ui,sans-serif;z-index:4;white-space:nowrap}
@@ -4523,9 +4526,19 @@ parent.postMessage({ type: "ready" }, "*");
       var zones = (SC.layers || []).filter(function (l) { return held[l.id] && l.base && l.base.width > 0 && l.base.height > 0 && l.base.width * l.base.height < SC.width * SC.height * 0.3 && !drawnOn(l); });
       var keyLabel = function (n) {
         var t = String(n || "").replace(/\s*(touch\s*)?(area|zone|button)\s*/gi, " ").trim();
-        if (/^left\b/i.test(t)) return "◀"; if (/^right\b/i.test(t)) return "▶";
-        if (/^up\b/i.test(t)) return "▲"; if (/^(down|duck)\b/i.test(t)) return "▼ " + (/duck/i.test(t) ? "Duck" : "");
-        return t || "●";
+        if (/^left\b/i.test(t)) return ["left", ""]; if (/^right\b/i.test(t)) return ["right", ""];
+        if (/^up\b/i.test(t)) return ["up", ""]; if (/^(down|duck)\b/i.test(t)) return ["down", /duck/i.test(t) ? "Duck" : ""];
+        return ["", t || "●"];
+      };
+      // arrows drawn as shapes, centred on their own box (text arrows each sit differently in the font)
+      var ARROW = { up: 0, right: 90, down: 180, left: 270 };
+      var keyFace = function (n) {
+        var f = keyLabel(n), s = el("span", "");
+        if (f[0]) s.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path transform="rotate(' + ARROW[f[0]] + ' 12 12)" d="M12 5 21 19H3Z" stroke-linejoin="round"/></svg>';
+        if (f[1]) s.append(document.createTextNode(f[1]));
+        if (f[0] && f[1]) s.className = "both";
+        s.setAttribute("aria-label", f[1] || f[0]);
+        return s;
       };
       if (zones.length) {
         var pad = el("div", "mx-pad"); document.body.append(pad);
@@ -4537,7 +4550,7 @@ parent.postMessage({ type: "ready" }, "*");
             var x0 = Math.max(r.left, r.left + (z.base.x - z.base.width / 2) * k), y0 = Math.max(r.top, r.top + (z.base.y - z.base.height / 2) * k);
             var x1 = Math.min(r.right, r.left + (z.base.x + z.base.width / 2) * k), y1 = Math.min(r.bottom, r.top + (z.base.y + z.base.height / 2) * k);
             if (x1 - x0 < 8 || y1 - y0 < 8) return;
-            var b = el("div", "mx-key"); b.append(el("span", "", keyLabel(z.name)));
+            var b = el("div", "mx-key"); b.append(keyFace(z.name));
             b.style.left = x0 + "px"; b.style.top = y0 + "px"; b.style.width = (x1 - x0) + "px"; b.style.height = (y1 - y0) + "px";
             pad.append(b);
           });
