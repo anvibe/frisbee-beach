@@ -21,6 +21,11 @@ canvas{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch
 .mx-sec{font:600 14px system-ui,sans-serif;padding:10px 16px;border-radius:999px;border:1px solid #ffffff33;background:#ffffff14;color:#fff;cursor:pointer}
 .mx-fs{position:fixed;left:58px;top:10px;height:40px;padding:0 14px;border-radius:999px;border:1px solid #ffffff33;background:#00000073;color:#fff;font:700 13px system-ui,sans-serif;z-index:4;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .mx-fs[hidden]{display:none}
+.mx-pad{position:fixed;inset:0;pointer-events:none;z-index:3}
+.mx-key{position:fixed;display:grid;place-items:center;box-sizing:border-box;pointer-events:none}
+.mx-key::before{content:"";position:absolute;inset:10%;border-radius:22px;border:2px solid #ffffff73;background:#0000002e;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.mx-key{color:#fff;font:800 clamp(13px,2.6vw,22px)/1 system-ui,sans-serif;text-shadow:0 1px 3px #000a;text-transform:capitalize}
+.mx-key>span{position:relative;white-space:nowrap}
 .mx-pause{position:fixed;left:10px;top:10px;width:40px;height:40px;border-radius:50%;border:1px solid #ffffff33;background:#00000073;color:#fff;font:800 13px system-ui,sans-serif;z-index:4;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .mx-soundchip{position:fixed;right:10px;top:10px;height:34px;padding:0 12px;border-radius:999px;border:1px solid #ffffff33;background:#00000073;color:#fff;font:600 12px system-ui,sans-serif;z-index:4;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .mx-rotate{display:none;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:8px 14px;border-radius:999px;background:#000000b3;color:#fff;font:600 13px system-ui,sans-serif;z-index:4;white-space:nowrap}
@@ -4501,6 +4506,46 @@ parent.postMessage({ type: "ready" }, "*");
     // full screen, always at hand next to pause (where the browser allows it; not iPhone Safari)
     var fsFab = el("button", "mx-fs", "⛶ Full screen"); document.body.append(fsFab);
     var rotate = el("div", "mx-rotate", "↻ Rotate your phone for a bigger screen"); document.body.append(rotate);
+    // ---- touch screens: the game's touch zones (layers that react while pressed) drawn as buttons, so people see
+    // where to press. The buttons are only a picture: touches go through them to the game, as before. ----
+    if (matchMedia("(pointer: coarse)").matches || "ontouchstart" in window) {
+      var SC = JSON.parse($("kineo-scene").textContent), held = {};
+      ((SC.interaction && SC.interaction.listeners) || []).forEach(function (l) { if (l.layer && l.on === "down") held[l.layer] = true; });
+      // a zone covering most of the screen ("tap anywhere to start") is not a button
+      // a zone that already has a button drawn on it (a visible layer over its centre) keeps the game's own button
+      var drawnOn = function (z) {
+        return (SC.layers || []).some(function (l) {
+          if (l === z || held[l.id] || l.type === "code" || !l.visible || !l.base || !(l.base.opacity > 0)) return false;
+          var w = l.base.width || (l.base.radius || 0) * 2 || 0, h = l.base.height || w;
+          return w > 0 && w < SC.width * 0.5 && Math.abs(l.base.x - z.base.x) < Math.max(w / 2, 40) && Math.abs(l.base.y - z.base.y) < Math.max(h / 2, 40);
+        });
+      };
+      var zones = (SC.layers || []).filter(function (l) { return held[l.id] && l.base && l.base.width > 0 && l.base.height > 0 && l.base.width * l.base.height < SC.width * SC.height * 0.3 && !drawnOn(l); });
+      var keyLabel = function (n) {
+        var t = String(n || "").replace(/\s*(touch\s*)?(area|zone|button)\s*/gi, " ").trim();
+        if (/^left\b/i.test(t)) return "◀"; if (/^right\b/i.test(t)) return "▶";
+        if (/^up\b/i.test(t)) return "▲"; if (/^(down|duck)\b/i.test(t)) return "▼ " + (/duck/i.test(t) ? "Duck" : "");
+        return t || "●";
+      };
+      if (zones.length) {
+        var pad = el("div", "mx-pad"); document.body.append(pad);
+        var placeKeys = function () {
+          var r = canvas.getBoundingClientRect(), k = r.width / SC.width;
+          pad.replaceChildren();
+          zones.forEach(function (z) {
+            // the zone, kept inside the game's picture (a zone may reach past its edge)
+            var x0 = Math.max(r.left, r.left + (z.base.x - z.base.width / 2) * k), y0 = Math.max(r.top, r.top + (z.base.y - z.base.height / 2) * k);
+            var x1 = Math.min(r.right, r.left + (z.base.x + z.base.width / 2) * k), y1 = Math.min(r.bottom, r.top + (z.base.y + z.base.height / 2) * k);
+            if (x1 - x0 < 8 || y1 - y0 < 8) return;
+            var b = el("div", "mx-key"); b.append(el("span", "", keyLabel(z.name)));
+            b.style.left = x0 + "px"; b.style.top = y0 + "px"; b.style.width = (x1 - x0) + "px"; b.style.height = (y1 - y0) + "px";
+            pad.append(b);
+          });
+        };
+        addEventListener("resize", placeKeys); addEventListener("orientationchange", function () { setTimeout(placeKeys, 250); });
+        placeKeys(); setTimeout(placeKeys, 400);
+      }
+    }
     var started = false;
     var soundLabel = function () { soundBtn.textContent = player.muted ? "🔇 Sound off" : "🔊 Sound on"; };
     var canFs = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
