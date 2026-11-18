@@ -7,7 +7,8 @@
 <meta name="generator" content="aghu Motion">
 <style>
 
-html,body{margin:0;height:100%;background:#7fcff6;overscroll-behavior:none}
+/* a game sits on dark bars, like a video player, so it reads as one framed screen on any window */
+html,body{margin:0;height:100%;background:#0b0b10;overscroll-behavior:none}
 body{display:grid;place-items:center;overflow:hidden}
 canvas{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 .mx-overlay{position:fixed;inset:0;display:grid;place-items:center;background:rgba(5,4,10,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:5}
@@ -18,6 +19,8 @@ canvas{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch
 .mx-play{font:800 20px system-ui,sans-serif;padding:16px 38px;border-radius:999px;border:0;color:#fff;background:linear-gradient(135deg,#ffb23e,#ff6b19 50%,#ff648e);box-shadow:0 0 30px #ff6b1966;cursor:pointer}
 .mx-row{display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap}
 .mx-sec{font:600 14px system-ui,sans-serif;padding:10px 16px;border-radius:999px;border:1px solid #ffffff33;background:#ffffff14;color:#fff;cursor:pointer}
+.mx-fs{position:fixed;left:58px;top:10px;height:40px;padding:0 14px;border-radius:999px;border:1px solid #ffffff33;background:#00000073;color:#fff;font:700 13px system-ui,sans-serif;z-index:4;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.mx-fs[hidden]{display:none}
 .mx-pause{position:fixed;left:10px;top:10px;width:40px;height:40px;border-radius:50%;border:1px solid #ffffff33;background:#00000073;color:#fff;font:800 13px system-ui,sans-serif;z-index:4;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .mx-soundchip{position:fixed;right:10px;top:10px;height:34px;padding:0 12px;border-radius:999px;border:1px solid #ffffff33;background:#00000073;color:#fff;font:600 12px system-ui,sans-serif;z-index:4;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .mx-rotate{display:none;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:8px 14px;border-radius:999px;background:#000000b3;color:#fff;font:600 13px system-ui,sans-serif;z-index:4;white-space:nowrap}
@@ -25,7 +28,8 @@ canvas{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch
 .mx-play:focus-visible,.mx-sec:focus-visible,.mx-pause:focus-visible{outline:2px solid #fff;outline-offset:3px}
 .kr-sound{position:fixed;right:14px;bottom:14px;display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;border:1px solid #ffffff2e;background:#000000a6;color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer;backdrop-filter:blur(8px)}
 .kr-sound:focus-visible{outline:2px solid #ff7a2e;outline-offset:2px}
-canvas{display:block;width:min(100vw,calc(100vh * 1920 / 1080));height:auto;aspect-ratio:1920/1080;cursor:pointer}
+/* the whole scene, as big as the window allows, never cut (dvh: a phone's real height, without its browser bars) */
+canvas{display:block;width:min(100vw,calc(100vh * 1920 / 1080));width:min(100vw,calc(100dvh * 1920 / 1080));height:auto;aspect-ratio:1920/1080;cursor:pointer;outline:none}
 </style>
 </head>
 <body>
@@ -4494,10 +4498,16 @@ parent.postMessage({ type: "ready" }, "*");
     var restart = el("button", "mx-sec", "↻ Restart"); var soundBtn = el("button", "mx-sec", ""); var fsBtn = el("button", "mx-sec", "⛶ Fullscreen");
     card.append(h1, sub, play, row); overlay.append(card); document.body.append(overlay);
     var pauseBtn = el("button", "mx-pause", "II"); pauseBtn.setAttribute("aria-label", "Pause"); pauseBtn.hidden = true; document.body.append(pauseBtn);
+    // full screen, always at hand next to pause (where the browser allows it; not iPhone Safari)
+    var fsFab = el("button", "mx-fs", "⛶ Full screen"); document.body.append(fsFab);
     var rotate = el("div", "mx-rotate", "↻ Rotate your phone for a bigger screen"); document.body.append(rotate);
     var started = false;
     var soundLabel = function () { soundBtn.textContent = player.muted ? "🔇 Sound off" : "🔊 Sound on"; };
     var canFs = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+    var isFs = function () { return !!(document.fullscreenElement || document.webkitFullscreenElement); };
+    var fsLabel = function () { fsFab.textContent = isFs() ? "✕ Exit full screen" : "⛶ Full screen"; fsFab.hidden = !canFs; };
+    document.addEventListener("fullscreenchange", fsLabel); document.addEventListener("webkitfullscreenchange", fsLabel);
+    fsLabel();
     var menu = function (paused) {
       h1.textContent = paused ? "Paused" : TITLE;
       sub.hidden = paused;
@@ -4515,11 +4525,14 @@ parent.postMessage({ type: "ready" }, "*");
     });
     restart.addEventListener("click", function () { player.restart(); go(); });
     soundBtn.addEventListener("click", function () { (player.muted ? player.unmute() : Promise.resolve(player.mute())).then(soundLabel); });
-    fsBtn.addEventListener("click", function () {
+    var toggleFs = function () {
       var d = document, r = d.documentElement;
       if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
       else Promise.resolve((r.requestFullscreen || r.webkitRequestFullscreen).call(r)).then(function () { if (screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(function () {}); }).catch(function () {});
-    });
+      canvas.focus && canvas.focus();
+    };
+    fsBtn.addEventListener("click", toggleFs);
+    fsFab.addEventListener("click", function (e) { e.stopPropagation(); toggleFs(); });
     var pause = function () { if (!overlay.hidden) return; player.pause(); menu(true); };
     pauseBtn.addEventListener("click", pause);
     addEventListener("keydown", function (e) { if (e.key === "Escape" || e.key === "p") { if (overlay.hidden) pause(); else if (started) go(); } });
